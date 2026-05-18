@@ -70,11 +70,11 @@ app.post('/api/save-name', (req, res) => {
 
 app.listen(3000, () => console.log('Server running on port 3000'));
 
-// // 4. RETRIEVE NAME ROUTE
-// app.get('/api/get-name', (req, res) => {
-//     if (!savedName) {
-//         return res.json({ message: "No name has been saved yet." });
-//     }
+4. RETRIEVE NAME ROUTE
+app.get('/api/get-name', (req, res) => {
+    if (!savedName) {
+        return res.json({ message: "No name has been saved yet." });
+    }
     
-//     res.json({ name: savedName });
-// });
+    res.json({ name: savedName });
+});
