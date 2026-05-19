@@ -68,13 +68,38 @@ app.post('/api/save-name', (req, res) => {
     });
 })
 
+// 4. RETRIEVE PROFILE ENDPOINT (NEW)
+// This uses 'authenticateToken' to safely read who is asking for their name
+// 4. RETRIEVE NAME ENDPOINT (CORRECTED GET METHOD)
+app.get('/api/get-name', (req, res) => {
+    // GET requests read from req.query instead of req.body
+    const { email } = req.body; 
+
+    // 1. Validation check
+    if (!email) {
+        return res.status(400).json({ error: "Please provide an email query parameter." });
+    }
+
+    // 2. Find the user in your USERS_DB array
+    const user = USERS_DB.find(u => u.email === email);
+
+    // 3. If user doesn't exist, return error
+    if (!user) {
+        return res.status(404).json({ error: "User not found." });
+    }
+
+    // 4. Check if they have a name saved
+    if (!user.name) {
+        return res.status(404).json({ error: "No name has been saved for this user yet." });
+    }
+
+    // 5. Return the saved name
+    res.status(200).json({
+        message: "Name retrieved successfully!",
+        name: user.name
+    });
+});
+
+
 app.listen(3000, () => console.log('Server running on port 3000'));
 
-// // 4. RETRIEVE NAME ROUTE
-// app.get('/api/get-name', (req, res) => {
-//     if (!savedName) {
-//         return res.json({ message: "No name has been saved yet." });
-//     }
-    
-//     res.json({ name: savedName });
-// });
