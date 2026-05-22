@@ -1,103 +1,115 @@
+require('dotenv').config();
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
+const User = require('./models/User');
 
 const app = express();
-app.use(express.json()); // Allows the server to read JSON data
+app.use(express.json());
 
-const USERS_DB = []; // Temporary database for testing
-const JWT_SECRET = 'your_super_secret_key'; // Used to sign login tokens
+const JWT_SECRET = process.env.JWT_SECRET;
+
+mongoose.connect(process.env.MONGO_URI)
+    .then(() => {
+        console.log('✅ Connected to MongoDB');
+        app.listen(3000, () => console.log('🚀 Server running on port 3000'));
+    })
+    .catch(err => {
+        console.error('❌ MongoDB connection failed:', err.message);
+        process.exit(1);
+    });
 
 const authenticateToken = (req, res, next) => {
     const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1]; // Extracts token from "Bearer <token>"
-
+    const token = authHeader && authHeader.split(' ')[1];
     if (!token) return res.status(401).json({ error: 'Access denied. No token provided.' });
-
     jwt.verify(token, JWT_SECRET, (err, user) => {
         if (err) return res.status(403).json({ error: 'Invalid or expired token.' });
-        req.user = user; // Attach decoded token data (email) to the request
+        req.user = user;
         next();
     });
 };
 
-// 1. REGISTER ENDPOINT
 app.post('/api/register', async (req, res) => {
     try {
         const { email, password } = req.body;
-        
-        // Hash the password before saving
+        if (!email || !password) {
+            return res.status(400).json({ error: 'Email and password are required.' });
+        }
+        const existingUser = await User.findOne({ email });
+        if (existingUser) {
+            return res.status(409).json({ error: 'An account with that email already exists.' });
+        }
         const hashedPassword = await bcrypt.hash(password, 10);
-        
-        USERS_DB.push({ email, password: hashedPassword });
+        await User.create({ email, password: hashedPassword });
         res.status(201).json({ message: 'User registered successfully!' });
-    } catch {
+    } catch (err) {
+        if (err.code === 11000) {
+            return res.status(409).json({ error: 'An account with that email already exists.' });
+        }
+        console.error('Register error:', err);
         res.status(500).json({ error: 'Registration failed.' });
     }
 });
 
-// 2. LOGIN ENDPOINT
 app.post('/api/login', async (req, res) => {
-    const { email, password } = req.body;
-    
-    // Find the user
-    const user = USERS_DB.find(u => u.email === email);
-    if (!user) return res.status(400).json({ error: 'User not found.' });
-
-    // Compare entered password with the hashed password
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(400).json({ error: 'Invalid credentials.' });
-
-    // Generate a secure login token (JWT)
-    const token = jwt.sign({ email: user.email }, JWT_SECRET, { expiresIn: '1h' });
-    res.json({ message: 'Login successful!', token });
+    try {
+        const { email, password } = req.body;
+        if (!email || !password) {
+            return res.status(400).json({ error: 'Email and password are required.' });
+        }
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(400).json({ error: 'Invalid email or password.' });
+        }
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) {
+            return res.status(400).json({ error: 'Invalid email or password.' });
+        }
+        const token = jwt.sign({ email: user.email }, JWT_SECRET, { expiresIn: '1h' });
+        res.json({ message: 'Login successful!', token });
+    } catch (err) {
+        console.error('Login error:', err);
+        res.status(500).json({ error: 'Login failed.' });
+    }
 });
 
-// 3. SAVE NAME ENDPOINT
-app.post('/api/save-name', authenticateToken, (req, res) => {
-    const { name } = req.body;
-    const email = req.user.email; // ✅ Comes from the verified token
-
-    if (!name) {
-        return res.status(400).json({ error: "Please provide a name." });
+app.post('/api/save-name', authenticateToken, async (req, res) => {
+    try {
+        const { name } = req.body;
+        const email = req.user.email;
+        if (!name) {
+            return res.status(400).json({ error: 'Please provide a name.' });
+        }
+        const user = await User.findOneAndUpdate(
+            { email },
+            { name },
+            { new: true }
+        );
+        if (!user) {
+            return res.status(404).json({ error: 'User not found.' });
+        }
+        res.status(200).json({ message: 'Name saved successfully!', name: user.name });
+    } catch (err) {
+        console.error('Save name error:', err);
+        res.status(500).json({ error: 'Failed to save name.' });
     }
-
-    const userIndex = USERS_DB.findIndex(u => u.email === email);
-
-    if (userIndex === -1) {
-        return res.status(404).json({ error: "User not found." });
-    }
-
-    USERS_DB[userIndex].name = name;
-
-    res.status(200).json({ 
-        message: "Name saved successfully!", 
-        updatedUser: USERS_DB[userIndex]
-    });
 });
 
-// 4. RETRIEVE PROFILE ENDPOINT (NEW)
-// This uses 'authenticateToken' to safely read who is asking for their name
-// 4. RETRIEVE NAME ENDPOINT (CORRECTED GET METHOD)
-app.get('/api/get-name', authenticateToken, (req, res) => {
-    const email = req.user.email; // ✅ Comes from the verified token
-
-    const user = USERS_DB.find(u => u.email === email);
-
-    if (!user) {
-        return res.status(404).json({ error: "User not found." });
+app.get('/api/get-name', authenticateToken, async (req, res) => {
+    try {
+        const email = req.user.email;
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(404).json({ error: 'User not found.' });
+        }
+        if (!user.name) {
+            return res.status(404).json({ error: 'No name saved yet.' });
+        }
+        res.status(200).json({ message: 'Name retrieved successfully!', name: user.name });
+    } catch (err) {
+        console.error('Get name error:', err);
+        res.status(500).json({ error: 'Failed to retrieve name.' });
     }
-
-    if (!user.name) {
-        return res.status(404).json({ error: "No name saved yet." });
-    }
-
-    res.status(200).json({
-        message: "Name retrieved successfully!",
-        name: user.name
-    });
 });
-
-
-app.listen(3000, () => console.log('Server running on port 3000'));
-
