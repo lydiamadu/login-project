@@ -16,10 +16,16 @@ const userSchema = new mongoose.Schema({
         type: String,
         default: null
     },
-    createdAt: {
-        type: Date,
-        default: Date.now
-    }
-});
+    role: {
+        type: String,
+        enum: ['admin', 'teacher', 'student', 'parent'],
+        default: 'student'
+    },
+    children: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    }]
+    
+}, { timestamps: true });
 
 module.exports = mongoose.model('User', userSchema);
