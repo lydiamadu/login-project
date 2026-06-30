@@ -14,12 +14,14 @@ const userSchema = new mongoose.Schema({
     },
     name: {
         type: String,
-        default: null
+        default: null,
+        minlength: 3,
+        maxlength: 50,
     },
     role: {
         type: String,
-        enum: ['admin', 'teacher', 'student', 'parent'],
-        default: 'student'
+        enum: ['ADMIN', 'TEACHER', 'STUDENT', 'PARENT'],
+        default: 'STUDENT'
     },
     children: [{
         type: mongoose.Schema.Types.ObjectId,
