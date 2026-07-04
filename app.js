@@ -18,8 +18,6 @@ const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
 const app = express();
 app.use(express.json());
 
-const JWT_SECRET = process.env.JWT_SECRET;
-
 app.use('/api/classes', classRoutes);
 app.get('/api/class/:id', authenticateToken, async (req, res) => {
     try {
@@ -105,7 +103,7 @@ app.post('/api/login', async (req, res) => {
         }
 
         const token = jwt.sign({ id: user._id, email: user.email, role: user.role },
-         JWT_SECRET, { expiresIn: '1h' });
+         process.env.JWT_SECRET, { expiresIn: '1h' });
         res.status(200).json({ message: 'Login successful!', token, role: user.role });
     } catch (err) {
         console.error('Login error:', err);
