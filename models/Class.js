@@ -18,7 +18,7 @@ const classSchema = new mongoose.Schema({
     },
     classType: {
         type: String,
-        enum: ['science', 'art', 'commercial'],
+        enum: ['science', 'art', 'commercial', 'general'],
         required: true
     },
     level: {
@@ -26,8 +26,9 @@ const classSchema = new mongoose.Schema({
         enum: ['JSS1','JSS2','JSS3','SS1','SS2','SS3'],
         required: true
     },
-    academicYear: {
+    term: {
         type: String,
+        enum: ['First Term', 'Second Term', 'Third Term'],
         required: true
     },
     teacher: {
@@ -41,7 +42,6 @@ const classSchema = new mongoose.Schema({
     }],
     subjects:    [{ type: String, trim: true }],
     schedule:    [scheduleEntrySchema],
-    room:        { type: String, trim: true },
     capacity:    { type: Number, min: 1 },
     description: { type: String, trim: true }
 

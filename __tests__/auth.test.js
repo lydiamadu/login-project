@@ -7,42 +7,43 @@ beforeAll(async () => { await db.connect(); });
 afterAll(async () => { await db.disconnect(); });
 afterEach(async () => { await db.clear(); });
 
+const VALID_PASSWORD = 'Pass123!';
+
 describe('POST /api/register', () => {
     it('registers a new user', async () => {
         const res = await request(app)
             .post('/api/register')
-            .send({ email: 'test@example.com', password: 'Pass123!' });
+            .send({ email: 'test@example.com', password: VALID_PASSWORD });
 
         expect(res.status).toBe(201);
         expect(res.body.message).toBe('User registered successfully!');
     });
 
-    it('defaults role to student', async () => {
+    it('defaults role to STUDENT', async () => {
         await request(app)
             .post('/api/register')
-            .send({ email: 'student@example.com', password: 'Pass123!' });
+            .send({ email: 'student@example.com', password: VALID_PASSWORD });
 
         const user = await User.findOne({ email: 'student@example.com' });
-        expect(user.role).toBe('student');
+        expect(user.role).toBe('STUDENT');
     });
 
     it('blocks admin self-assignment', async () => {
-        await request(app)
+        const res = await request(app)
             .post('/api/register')
-            .send({ email: 'hacker@example.com', password: 'Pass123!', role: 'admin' });
+            .send({ email: 'hacker@example.com', password: VALID_PASSWORD, role: 'ADMIN' });
 
-        const user = await User.findOne({ email: 'hacker@example.com' });
-        expect(user.role).toBe('student');
+        expect(res.status).toBe(400);
     });
 
     it('rejects duplicate email', async () => {
         await request(app)
             .post('/api/register')
-            .send({ email: 'dup@example.com', password: 'Pass123!' });
+            .send({ email: 'dup@example.com', password: VALID_PASSWORD });
 
         const res = await request(app)
             .post('/api/register')
-            .send({ email: 'dup@example.com', password: 'Pass123!' });
+            .send({ email: 'dup@example.com', password: VALID_PASSWORD });
 
         expect(res.status).toBe(409);
     });
@@ -50,7 +51,7 @@ describe('POST /api/register', () => {
     it('rejects missing email', async () => {
         const res = await request(app)
             .post('/api/register')
-            .send({ password: 'Pass123!' });
+            .send({ password: VALID_PASSWORD });
 
         expect(res.status).toBe(400);
     });
@@ -62,29 +63,69 @@ describe('POST /api/register', () => {
 
         expect(res.status).toBe(400);
     });
+
+    it('rejects weak password (too short)', async () => {
+        const res = await request(app)
+            .post('/api/register')
+            .send({ email: 'weak@example.com', password: 'Ab1!' });
+
+        expect(res.status).toBe(400);
+    });
+
+    it('rejects password without uppercase', async () => {
+        const res = await request(app)
+            .post('/api/register')
+            .send({ email: 'weak@example.com', password: 'password1!' });
+
+        expect(res.status).toBe(400);
+    });
+
+    it('rejects password without number', async () => {
+        const res = await request(app)
+            .post('/api/register')
+            .send({ email: 'weak@example.com', password: 'Password!' });
+
+        expect(res.status).toBe(400);
+    });
+
+    it('rejects password without special character', async () => {
+        const res = await request(app)
+            .post('/api/register')
+            .send({ email: 'weak@example.com', password: 'Password1' });
+
+        expect(res.status).toBe(400);
+    });
+
+    it('rejects invalid email format', async () => {
+        const res = await request(app)
+            .post('/api/register')
+            .send({ email: 'not-an-email', password: VALID_PASSWORD });
+
+        expect(res.status).toBe(400);
+    });
 });
 
 describe('POST /api/login', () => {
     beforeEach(async () => {
         await request(app)
             .post('/api/register')
-            .send({ email: 'login@example.com', password: 'Pass123!' });
+            .send({ email: 'login@example.com', password: VALID_PASSWORD });
     });
 
     it('logs in with correct credentials', async () => {
         const res = await request(app)
             .post('/api/login')
-            .send({ email: 'login@example.com', password: 'Pass123!' });
+            .send({ email: 'login@example.com', password: VALID_PASSWORD });
 
         expect(res.status).toBe(200);
         expect(res.body.token).toBeDefined();
-        expect(res.body.role).toBe('student');
+        expect(res.body.role).toBe('STUDENT');
     });
 
     it('rejects wrong password', async () => {
         const res = await request(app)
             .post('/api/login')
-            .send({ email: 'login@example.com', password: 'wrong' });
+            .send({ email: 'login@example.com', password: 'Wrong123!' });
 
         expect(res.status).toBe(400);
     });
@@ -92,7 +133,7 @@ describe('POST /api/login', () => {
     it('rejects non-existent email', async () => {
         const res = await request(app)
             .post('/api/login')
-            .send({ email: 'ghost@example.com', password: 'Pass123!' });
+            .send({ email: 'ghost@example.com', password: VALID_PASSWORD });
 
         expect(res.status).toBe(400);
     });
@@ -127,11 +168,11 @@ describe('POST /api/save-name + GET /api/get-name', () => {
     beforeEach(async () => {
         await request(app)
             .post('/api/register')
-            .send({ email: 'named@example.com', password: 'Pass123!' });
+            .send({ email: 'named@example.com', password: VALID_PASSWORD });
 
         const login = await request(app)
             .post('/api/login')
-            .send({ email: 'named@example.com', password: 'Pass123!' });
+            .send({ email: 'named@example.com', password: VALID_PASSWORD });
 
         token = login.body.token;
     });
@@ -140,7 +181,7 @@ describe('POST /api/save-name + GET /api/get-name', () => {
         await request(app)
             .post('/api/save-name')
             .set('Authorization', `Bearer ${token}`)
-            .send({ name: 'Lydia' })
+            .send({ name: 'Lydia Madu' })
             .expect(200);
 
         const res = await request(app)
@@ -148,7 +189,7 @@ describe('POST /api/save-name + GET /api/get-name', () => {
             .set('Authorization', `Bearer ${token}`);
 
         expect(res.status).toBe(200);
-        expect(res.body.name).toBe('Lydia');
+        expect(res.body.name).toBe('Lydia Madu');
     });
 
     it('rejects empty name', async () => {

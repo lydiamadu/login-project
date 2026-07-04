@@ -8,6 +8,8 @@ beforeAll(async () => { await db.connect(); });
 afterAll(async () => { await db.disconnect(); });
 afterEach(async () => { await db.clear(); });
 
+const VALID_PASSWORD = 'Pass123!';
+
 async function registerAndLogin(email, password, role) {
     const bcrypt = require('bcryptjs');
     const hashed = await bcrypt.hash(password, 10);
@@ -23,14 +25,14 @@ describe('Class CRUD', () => {
     let teacher, student;
 
     beforeEach(async () => {
-        const admin = await registerAndLogin('admin@school.com', 'Pass123!', 'admin');
+        const admin = await registerAndLogin('admin@school.com', VALID_PASSWORD, 'ADMIN');
         adminToken = admin.token;
 
-        const t = await registerAndLogin('teacher@school.com', 'Pass123!', 'teacher');
+        const t = await registerAndLogin('teacher@school.com', VALID_PASSWORD, 'TEACHER');
         teacherToken = t.token;
         teacher = t.user;
 
-        const s = await registerAndLogin('student@school.com', 'Pass123!', 'student');
+        const s = await registerAndLogin('student@school.com', VALID_PASSWORD, 'STUDENT');
         studentToken = s.token;
         student = s.user;
     });
@@ -39,7 +41,7 @@ describe('Class CRUD', () => {
         name: 'Physics SS2',
         classType: 'science',
         level: 'SS2',
-        academicYear: '2025/2026',
+        term: 'First Term',
         teacher: teacher._id.toString(),
         subjects: ['Physics'],
     });
@@ -75,13 +77,19 @@ describe('Class CRUD', () => {
     });
 
     describe('GET /api/classes', () => {
-        it('any authenticated user can list classes', async () => {
+        it('admin gets classes grouped by level', async () => {
+            await request(app)
+                .post('/api/classes')
+                .set('Authorization', `Bearer ${adminToken}`)
+                .send(classData());
+
             const res = await request(app)
                 .get('/api/classes')
-                .set('Authorization', `Bearer ${studentToken}`);
+                .set('Authorization', `Bearer ${adminToken}`);
 
             expect(res.status).toBe(200);
-            expect(Array.isArray(res.body)).toBe(true);
+            expect(res.body).toHaveProperty('SS2');
+            expect(res.body.SS2).toHaveLength(1);
         });
     });
 
@@ -94,7 +102,7 @@ describe('Class CRUD', () => {
 
             const res = await request(app)
                 .get(`/api/classes/${created.body.class._id}`)
-                .set('Authorization', `Bearer ${studentToken}`);
+                .set('Authorization', `Bearer ${adminToken}`);
 
             expect(res.status).toBe(200);
             expect(res.body.name).toBe('Physics SS2');
@@ -104,7 +112,7 @@ describe('Class CRUD', () => {
             const fakeId = new mongoose.Types.ObjectId();
             const res = await request(app)
                 .get(`/api/classes/${fakeId}`)
-                .set('Authorization', `Bearer ${studentToken}`);
+                .set('Authorization', `Bearer ${adminToken}`);
 
             expect(res.status).toBe(404);
         });
@@ -141,7 +149,7 @@ describe('Class CRUD', () => {
         });
 
         it('teacher cannot update another teacher\'s class', async () => {
-            const otherTeacher = await registerAndLogin('other@school.com', 'Pass123!', 'teacher');
+            const otherTeacher = await registerAndLogin('other@school.com', VALID_PASSWORD, 'TEACHER');
 
             const created = await request(app)
                 .post('/api/classes')
