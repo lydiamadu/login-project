@@ -7,6 +7,7 @@ const mongoose = require('mongoose');
 const User = require('./models/User');
 const { authenticateToken, authorizeRoles } = require('./middleware/auth');
 const classRoutes = require('./routes/classes');
+const gradeRoutes = require('./routes/grade');
 
 const isValidEmail = (email) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -32,6 +33,8 @@ mongoose.connect(process.env.MONGO_URI)
 
 //Mount class routes
 app.use('/api/classes', classRoutes);
+//Mount grade routes
+app.use('/api/grades', gradeRoutes);
 app.get('/api/class/:id', authenticateToken, async (req, res) => {
     try {
         if (!isValidObjectId(req.params.id)) {
@@ -179,33 +182,7 @@ app.get('/api/get-name', authenticateToken, async (req, res) => {
 });
 
 //view child results- parent, teacher (if they have children linked), admin
-app.get('/api/results/:studentId', authenticateToken, authorizeRoles('ADMIN', 'PARENT', 'TEACHER'), async (req, res) => {
-    try {
-        if (!isValidObjectId(req.params.studentId)) {
-            return res.status(400).json({ error: 'Invalid student ID.' });
-        }
-        const { studentId } = req.params;
 
-        //parents and teacher-parent must have the children in their children array
-        if (req.user.role === 'PARENT' || req.user.role === 'TEACHER') {
-            const me = await User.findById(req.user.id);
-            const isMyChild = me.children.map(id => id.toString()).includes(studentId);
-            if (!isMyChild) {
-                return res.status(403).json({ error: 'You can only view results for your own children.' });
-            }
-        }
-
-        const classes = await require('./models/Class').find({ students: studentId })
-        .populate('teacher', 'name')
-        .select('name classType subjects term');
-
-         res.json({ studentId, classes });
-
-    } catch (err) {
-        console.error('Results error:', err);
-        res.status(500).json({ error: 'Failed to fetch results.' });
-    }
-});
 
 //admin; link a parent (or teacher-parent) to their children
 app.post('/api/link-child', authenticateToken, authorizeRoles('ADMIN'), async (req, res) => {
